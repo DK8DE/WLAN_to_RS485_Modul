@@ -1,0 +1,14 @@
+{
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=C:/Users/DK8DE/.platformio/packages/toolchain-*/bin/*,C:/Users/DK8DE/.platformio/packages/tool-*/bin/*",
+    "--query-driver=${env:USERPROFILE}/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-g++*",
+    "--query-driver=**/riscv32-esp-elf-gcc*",
+    "--query-driver=**/riscv32-esp-elf-g++*",
+    "--compile-commands-dir=d:/Rotor/WLAN_to_RS485/.cache/clangd"
+  ],
+  "clangd.fallbackFlags": [],
+  "clangd.path": "C:\\Users\\DK8DE\\.platformio\\packages\\tool-clangd-esp\\bin\\clangd.exe"
+}

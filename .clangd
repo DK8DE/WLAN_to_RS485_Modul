@@ -1,0 +1,49 @@
+CompileFlags:
+  Add:
+    - "-Wall"
+    - "-Wextra"
+    - "-Wunused-variable"
+    - "-Wunused-function"
+    - "-Wno-unused-parameter"
+    - "-Wno-reserved-identifier"
+  Remove:
+    - "-misc-unused-parameters"
+    - "-mfix-esp32-psram-cache-issue"
+    - "-mfix-esp32-psram-cache-strategy=*"
+    - "-fno-shrink-wrap"
+    - "-fno-malloc-dce"
+    - "-fno-tree-switch-conversion"
+    - "-fstrict-volatile-bitfields"
+    - "-fzero-init-padding-bits=*"
+    - "-free"
+    - "-fipa-pta"
+    - "-march=*"
+    - "-mtune=*"
+    - "-mdisable-hardware-atomics"
+    - "-mlongcalls"
+    - "-mtext-section-literals"
+    - "-mtarget-align"
+    - "-mno-target-align"
+    - "-isysroot"
+Index:
+  Background: Skip
+  StandardLibrary: true
+---
+CompileFlags:
+  BuiltinHeaders: QueryDriver
+Diagnostics:
+  Suppress: [pp_expects_filename, unused-includes]
+---
+If:
+  PathMatch: .*\.ino
+CompileFlags:
+  Add:
+    - "-x"
+    - "c++"
+    - "-include"
+    - "Arduino.h"
+---
+# ESP32/Arduino: viele Header sind „Umbrella“-Includes; clangd markiert sie oft fälschlich.
+# compile_commands.json: pio run -t compiledb -e esp32-c5-n4
+Diagnostics:
+  UnusedIncludes: None

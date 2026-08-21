@@ -1,0 +1,3 @@
+Dieses Verzeichnis ist für projektspezifische/lokale Bibliotheken vorgesehen
+(analog zu Rotor_Firmware), z. B. für Git-Submodule oder offline eingebundene
+Libraries. PlatformIO bindet jede Unterordner-Bibliothek hier automatisch ein.
