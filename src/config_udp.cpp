@@ -1,5 +1,6 @@
 #include "config_udp.h"
 
+#include "config_handlers.h"
 #include "config_ingress.h"
 
 #include <WiFi.h>
@@ -14,11 +15,28 @@ static bool g_udp_ok = false;
 static IPAddress g_last_peer_ip;
 static uint16_t g_last_peer_port = 0;
 
-void config_udp_reply(const uint8_t* data, size_t len, void* /*ctx*/) {
-  if (!g_udp_ok || data == nullptr || len == 0 || g_last_peer_port == 0) {
+void config_udp_set_peer(const IPAddress& ip, uint16_t port) {
+  g_last_peer_ip = ip;
+  g_last_peer_port = port;
+}
+
+void config_udp_reply(const uint8_t* data, size_t len, void* ctx) {
+  if (!g_udp_ok || data == nullptr || len == 0) {
     return;
   }
-  g_udp.beginPacket(g_last_peer_ip, g_last_peer_port);
+  IPAddress ip = g_last_peer_ip;
+  uint16_t port = g_last_peer_port;
+  if (ctx != nullptr) {
+    const UdpReplyPeer* peer = static_cast<const UdpReplyPeer*>(ctx);
+    if (peer->port != 0) {
+      ip = peer->ip;
+      port = peer->port;
+    }
+  }
+  if (port == 0) {
+    return;
+  }
+  g_udp.beginPacket(ip, port);
   g_udp.write(data, len);
   g_udp.endPacket();
 }
@@ -29,7 +47,6 @@ void config_udp_begin() {
 }
 
 static void config_udp_task(void* /*arg*/) {
-  // Wait until WiFi stack is up
   for (;;) {
     if (!g_udp_ok) {
       if (WiFi.getMode() != WIFI_OFF) {
@@ -43,14 +60,16 @@ static void config_udp_task(void* /*arg*/) {
 
     config_ingress_poll();
 
-    int packet = g_udp.parsePacket();
+    const int packet = g_udp.parsePacket();
     if (packet <= 0) {
-      vTaskDelay(pdMS_TO_TICKS(5));
+      vTaskDelay(pdMS_TO_TICKS(2));
       continue;
     }
 
-    g_last_peer_ip = g_udp.remoteIP();
-    g_last_peer_port = g_udp.remotePort();
+    UdpReplyPeer peer{};
+    peer.ip = g_udp.remoteIP();
+    peer.port = g_udp.remotePort();
+    config_udp_set_peer(peer.ip, peer.port);
 
     uint8_t buf[512];
     const int n = g_udp.read(buf, sizeof(buf));
@@ -58,9 +77,13 @@ static void config_udp_task(void* /*arg*/) {
       continue;
     }
 
-    uint8_t bridge_tmp[8]; // UDP config is not bridged to RS485
-    (void)config_ingress_feed(ConfigTransport::Udp, buf, static_cast<size_t>(n), bridge_tmp,
-                              sizeof(bridge_tmp));
+    config_ingress_feed_udp(buf, static_cast<size_t>(n), &peer);
+
+    // Verzögerte DISCOVER-Antworten (RS485-Jitter-Pfad) auch im UDP-Task abarbeiten
+    for (int i = 0; i < 120 && config_handlers_discover_pending(); ++i) {
+      config_handlers_poll();
+      vTaskDelay(pdMS_TO_TICKS(5));
+    }
   }
 }
 

@@ -293,7 +293,7 @@ static void wifi_manager_task(void* /*arg*/) {
         g_wifi_state = WifiLinkState::DOWN;
         gpio_status_set_wlan_link(false);
 
-        const unsigned long since_attempt = millis() - g_sta_last_attempt_ms;
+        const unsigned long since_attempt = (unsigned long)(int32_t)(millis() - g_sta_last_attempt_ms);
         if (cfg.fallback_ap && cfg.wifi_ssid[0] != '\0' &&
             g_sta_connect_attempts >= kStaMaxConnectAttempts &&
             since_attempt >= kStaRetryIntervalMs) {

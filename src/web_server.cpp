@@ -12,6 +12,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <esp_system.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,6 +128,12 @@ static bool json_get_bool(const String& body, const char* key, bool* out) {
   return false;
 }
 
+static String json_u64(uint64_t v) {
+  char buf[24];
+  snprintf(buf, sizeof(buf), "%" PRIu64, v);
+  return String(buf);
+}
+
 static bool require_auth() {
   const AppConfig& cfg = app_config_runtime_const();
   const char* pass = cfg.web_pass[0] ? cfg.web_pass : "Rotorconfig";
@@ -166,7 +173,8 @@ static void handle_status() {
     link = "SoftAP";
   }
 
-  const unsigned long up_s = (millis() - st.boot_ms) / 1000UL;
+  const unsigned long up_s =
+      static_cast<unsigned long>((int32_t)(millis() - st.boot_ms) / 1000);
 
   String j = "{";
   j += "\"device_name\":\"" + json_escape(cfg.device_name) + "\",";
@@ -197,12 +205,12 @@ static void handle_status() {
   j += "\"rs485_rx_allowed\":" + String(cfg.rs485_rx_allowed ? "true" : "false") + ",";
   j += "\"packet_timeout_ms\":" + String(cfg.packet_timeout_ms) + ",";
   j += "\"packet_size\":" + String(cfg.packet_size) + ",";
-  j += "\"rs485_rx\":" + String(st.rs485_rx_bytes) + ",";
-  j += "\"rs485_tx\":" + String(st.rs485_tx_bytes) + ",";
-  j += "\"net_rx\":" + String(st.net_rx_bytes) + ",";
-  j += "\"net_tx\":" + String(st.net_tx_bytes) + ",";
-  j += "\"net_tx_drops\":" + String(st.net_tx_drops) + ",";
-  j += "\"net_rx_drops\":" + String(st.net_rx_drops) + ",";
+  j += "\"rs485_rx\":" + json_u64(st.rs485_rx_bytes) + ",";
+  j += "\"rs485_tx\":" + json_u64(st.rs485_tx_bytes) + ",";
+  j += "\"net_rx\":" + json_u64(st.net_rx_bytes) + ",";
+  j += "\"net_tx\":" + json_u64(st.net_tx_bytes) + ",";
+  j += "\"net_tx_drops\":" + json_u64(st.net_tx_drops) + ",";
+  j += "\"net_rx_drops\":" + json_u64(st.net_rx_drops) + ",";
   j += "\"discovery_udp_port\":" + String(config_discovery_udp_port()) + ",";
   j += "\"config_session\":" + String(config_session_active() ? "true" : "false") + ",";
   j += "\"free_heap\":" + String(ESP.getFreeHeap());

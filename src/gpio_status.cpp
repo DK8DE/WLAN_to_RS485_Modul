@@ -49,9 +49,7 @@ void gpio_status_factory_confirm_blink() {
 
 void gpio_status_loop() {
   const unsigned long now = millis();
-
-  // LBLED blink
-  if (now - g_lbled_last >= LBLED_BLINK_MS) {
+  if ((int32_t)(now - g_lbled_last) >= static_cast<int32_t>(LBLED_BLINK_MS)) {
     g_lbled_last = now;
     g_lbled_on = !g_lbled_on;
     digitalWrite(PIN_LBLED, g_lbled_on ? HIGH : LOW);
@@ -66,7 +64,8 @@ void gpio_status_loop() {
     g_btn_last_raw = raw_released;
     g_btn_change_ms = now;
   }
-  if ((now - g_btn_change_ms) >= BTN_DEBOUNCE_MS && raw_released != g_btn_stable) {
+  if ((int32_t)(now - g_btn_change_ms) >= static_cast<int32_t>(BTN_DEBOUNCE_MS) &&
+      raw_released != g_btn_stable) {
     g_btn_stable = raw_released;
     if (!g_btn_stable) {
       g_btn_holding = true;
@@ -77,7 +76,7 @@ void gpio_status_loop() {
   }
 
   if (g_btn_holding && !g_factory_req) {
-    if ((now - g_btn_press_start) >= FACTORY_HOLD_MS) {
+    if ((int32_t)(now - g_btn_press_start) >= static_cast<int32_t>(FACTORY_HOLD_MS)) {
       g_factory_req = true;
       g_btn_holding = false;
     }

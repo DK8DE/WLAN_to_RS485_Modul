@@ -5,18 +5,18 @@
 
 struct SystemStats {
   uint32_t boot_ms;
-  uint32_t rs485_rx_bytes;
-  uint32_t rs485_tx_bytes;
-  uint32_t net_rx_bytes;
-  uint32_t net_tx_bytes;
-  uint32_t net_tx_drops;
-  uint32_t net_rx_drops;
-  uint32_t uart_tx_err;
-  uint32_t echo_drops;
-  uint32_t echo_mismatch;
-  uint32_t tcp_connects;
-  uint32_t tcp_disconnects;
-  uint32_t tcp_reconnects;
+  uint64_t rs485_rx_bytes;
+  uint64_t rs485_tx_bytes;
+  uint64_t net_rx_bytes;
+  uint64_t net_tx_bytes;
+  uint64_t net_tx_drops;
+  uint64_t net_rx_drops;
+  uint64_t uart_tx_err;
+  uint64_t echo_drops;
+  uint64_t echo_mismatch;
+  uint64_t tcp_connects;
+  uint64_t tcp_disconnects;
+  uint64_t tcp_reconnects;
   int reset_reason;
 };
 
@@ -37,3 +37,6 @@ void system_monitor_inc_tcp_disconnect();
 void system_monitor_inc_tcp_reconnect();
 
 void system_monitor_loop(); // Watchdog / periodisches Log optional
+
+// Dezimalstring für uint64 (ESP32-newlib printf hat oft kein %llu)
+void system_monitor_u64_to_str(uint64_t v, char* out, size_t out_len);

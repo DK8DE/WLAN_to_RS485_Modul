@@ -245,7 +245,7 @@ static void try_tcp_client(const AppConfig& cfg) {
   }
 
   const unsigned long now = millis();
-  if (now - g_last_client_try_ms < cfg.reconnect_ms) {
+  if ((int32_t)(now - g_last_client_try_ms) < static_cast<int32_t>(cfg.reconnect_ms)) {
     return;
   }
   g_last_client_try_ms = now;

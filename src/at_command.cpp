@@ -6,6 +6,7 @@
 #include "config_udp.h"
 #include "device_identity.h"
 #include "network_bridge.h"
+#include "system_monitor.h"
 #include "wifi_manager.h"
 
 #include <WiFi.h>
@@ -58,7 +59,7 @@ void at_command_note_rx(ConfigTransport t) {
 
 void at_command_poll() {
   if (g_mode == UartAppMode::At && g_session_last_ms != 0 &&
-      (millis() - g_session_last_ms) >= kSessionTimeoutMs) {
+      (int32_t)(millis() - g_session_last_ms) >= static_cast<int32_t>(kSessionTimeoutMs)) {
     at_command_set_mode(UartAppMode::Data);
   }
 }
@@ -104,6 +105,16 @@ static void at_reply_uid_prefix() {
   at_printf("@%s:", g_identity.uid);
 }
 
+static void at_reply_u64_line(const char* prefix, uint64_t v) {
+  char num[24];
+  system_monitor_u64_to_str(v, num, sizeof(num));
+  at_printf("%s%s\r\n", prefix, num);
+}
+
+static bool body_is(const char* body, const char* with_q, const char* no_q) {
+  return strcmp(body, with_q) == 0 || (no_q && strcmp(body, no_q) == 0);
+}
+
 static void touch_session() { g_session_last_ms = millis(); }
 
 static const char* skip_ws(const char* p) {
@@ -132,16 +143,10 @@ static bool parse_quoted(const char* p, char* out, size_t out_len) {
   return out[0] != '\0';
 }
 
-static void cmd_ok() {
-  at_reply_uid_prefix();
-  at_reply("OK\r\n");
-}
+static void cmd_ok() { at_printf("@%s:OK\r\n", g_identity.uid); }
 
 static void cmd_err(const char* code) {
-  char buf[64];
-  snprintf(buf, sizeof(buf), "ERROR,%s\r\n", code ? code : "FAIL");
-  at_reply_uid_prefix();
-  at_write(buf);
+  at_printf("@%s:ERROR,%s\r\n", g_identity.uid, code ? code : "FAIL");
 }
 
 static void handle_at_body(const char* body) {
@@ -154,7 +159,8 @@ static void handle_at_body(const char* body) {
   AppConfig& cfg = app_config_runtime();
 
   if (strcmp(body, "HELP?") == 0 || strcmp(body, "HELP") == 0) {
-    at_reply("AT INFO STATUS UID MAC NAME SAVE REBOOT FACTORY WIFI* NET* BUSADDR PACKET* BRIDGE ECHO EXIT\r\n");
+    at_reply("AT INFO STATUS STATS UID MAC NAME SAVE REBOOT FACTORY WIFI* NET* "
+             "BUSADDR PACKET* BRIDGE RS485* NETCOUNT DIRECTION ECHO EXIT\r\n");
     cmd_ok();
     return;
   }
@@ -170,8 +176,15 @@ static void handle_at_body(const char* body) {
     cmd_ok();
     return;
   }
+  if (strcmp(body, "STATS?") == 0) {
+    char buf[512];
+    config_build_status_text(buf, sizeof(buf));
+    at_write(buf);
+    cmd_ok();
+    return;
+  }
   if (strcmp(body, "STATUS?") == 0) {
-    char buf[256];
+    char buf[512];
     config_build_status_text(buf, sizeof(buf));
     at_write(buf);
     cmd_ok();
@@ -371,6 +384,16 @@ static void handle_at_body(const char* body) {
     cmd_ok();
     return;
   }
+  if (strcmp(body, "LOCALPORT?") == 0) {
+    at_printf("+LOCALPORT:%u\r\n", cfg.local_port);
+    cmd_ok();
+    return;
+  }
+  if (strcmp(body, "REMOTEIP?") == 0) {
+    at_printf("+REMOTEIP:%s\r\n", cfg.remote_ip);
+    cmd_ok();
+    return;
+  }
   if (strncmp(body, "REMOTEIP=", 9) == 0) {
     parse_quoted(body + 9, cfg.remote_ip, sizeof(cfg.remote_ip));
     cmd_ok();
@@ -381,8 +404,18 @@ static void handle_at_body(const char* body) {
     cmd_ok();
     return;
   }
+  if (strcmp(body, "REMOTEHOST?") == 0) {
+    at_printf("+REMOTEHOST:%s\r\n", cfg.remote_host);
+    cmd_ok();
+    return;
+  }
   if (strncmp(body, "REMOTEPORT=", 11) == 0) {
     cfg.remote_port = static_cast<uint16_t>(atoi(body + 11));
+    cmd_ok();
+    return;
+  }
+  if (strcmp(body, "REMOTEPORT?") == 0) {
+    at_printf("+REMOTEPORT:%u\r\n", cfg.remote_port);
     cmd_ok();
     return;
   }
@@ -392,7 +425,57 @@ static void handle_at_body(const char* body) {
     return;
   }
 
-  // RS485
+  // RS485 / Bridge / Statistik
+  if (body_is(body, "RS485RX?", "RS485RX")) {
+    at_reply_u64_line("+RS485RX:", system_monitor_stats().rs485_rx_bytes);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "RS485TX?", "RS485TX")) {
+    at_reply_u64_line("+RS485TX:", system_monitor_stats().rs485_tx_bytes);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "NETRX?", "NETRX")) {
+    at_reply_u64_line("+NETRX:", system_monitor_stats().net_rx_bytes);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "NETTX?", "NETTX")) {
+    at_reply_u64_line("+NETTX:", system_monitor_stats().net_tx_bytes);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "NETDROPS?", "NETDROPS")) {
+    const SystemStats& st = system_monitor_stats();
+    char dtx[24], drx[24];
+    system_monitor_u64_to_str(st.net_tx_drops, dtx, sizeof(dtx));
+    system_monitor_u64_to_str(st.net_rx_drops, drx, sizeof(drx));
+    at_printf("+NET_TX_DROPS:%s\r\n+NET_RX_DROPS:%s\r\n", dtx, drx);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "PACKETIZER?", "PACKETIZER")) {
+    at_printf("+PACKETIZER:%u,%u\r\n", cfg.packet_timeout_ms, cfg.packet_size);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "DIRECTION?", "DIRECTION")) {
+    at_printf("+RS485_TX_ALLOWED:%u\r\n+RS485_RX_ALLOWED:%u\r\n",
+              cfg.rs485_tx_allowed ? 1u : 0u, cfg.rs485_rx_allowed ? 1u : 0u);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "RS485TXALLOW?", "RS485TXALLOW")) {
+    at_printf("+RS485_TX_ALLOWED:%u\r\n", cfg.rs485_tx_allowed ? 1 : 0);
+    cmd_ok();
+    return;
+  }
+  if (body_is(body, "RS485RXALLOW?", "RS485RXALLOW")) {
+    at_printf("+RS485_RX_ALLOWED:%u\r\n", cfg.rs485_rx_allowed ? 1 : 0);
+    cmd_ok();
+    return;
+  }
   if (strcmp(body, "BAUD?") == 0) {
     at_printf("+BAUD:%u,FIXED\r\n", cfg.rs485_baud);
     cmd_ok();
@@ -539,8 +622,7 @@ size_t at_command_watch_data(const uint8_t* data, size_t len) {
       g_esc_len = 0;
       if (at_command_id_matches(id)) {
         at_command_set_mode(UartAppMode::At);
-        at_reply_uid_prefix();
-        at_reply("CONFIG,READY\r\n");
+        at_printf("@%s:CONFIG,READY\r\n", g_identity.uid);
         return consumed;
       }
       return 0;

@@ -63,7 +63,7 @@ static void rs485_rx_task(void* /*arg*/) {
 
     const int avail = Serial.available();
     if (avail <= 0) {
-      if (chunk.len > 0 && (millis() - last_byte_ms) >= idle_ms) {
+      if (chunk.len > 0 && (int32_t)(millis() - last_byte_ms) >= idle_ms) {
         bridge_push_to_net(chunk.data, chunk.len);
         chunk.len = 0;
       }
@@ -78,23 +78,31 @@ static void rs485_rx_task(void* /*arg*/) {
       continue;
     }
 
-    const size_t blen =
-        config_ingress_feed(ConfigTransport::Uart, raw, n, bridge_buf, sizeof(bridge_buf));
-    if (blen == 0) {
-      continue;
-    }
+    size_t raw_off = 0;
+    while (raw_off < n || config_ingress_pending(ConfigTransport::Uart)) {
+      const size_t feed_len = (raw_off < n) ? (n - raw_off) : 0;
+      const uint8_t* feed_ptr = feed_len > 0 ? (raw + raw_off) : nullptr;
+      const size_t blen = config_ingress_feed(ConfigTransport::Uart, feed_ptr, feed_len, bridge_buf,
+                                              sizeof(bridge_buf), nullptr);
+      if (feed_len > 0) {
+        raw_off = n;
+      }
+      if (blen == 0) {
+        break;
+      }
 
-    size_t off = 0;
-    while (off < blen) {
-      const size_t space = static_cast<size_t>(max_chunk) - chunk.len;
-      const size_t take = min(space, blen - off);
-      memcpy(chunk.data + chunk.len, bridge_buf + off, take);
-      chunk.len = static_cast<uint16_t>(chunk.len + take);
-      off += take;
-      last_byte_ms = millis();
-      if (chunk.len >= max_chunk) {
-        bridge_push_to_net(chunk.data, chunk.len);
-        chunk.len = 0;
+      size_t off = 0;
+      while (off < blen) {
+        const size_t space = static_cast<size_t>(max_chunk) - chunk.len;
+        const size_t take = min(space, blen - off);
+        memcpy(chunk.data + chunk.len, bridge_buf + off, take);
+        chunk.len = static_cast<uint16_t>(chunk.len + take);
+        off += take;
+        last_byte_ms = millis();
+        if (chunk.len >= max_chunk) {
+          bridge_push_to_net(chunk.data, chunk.len);
+          chunk.len = 0;
+        }
       }
     }
   }
@@ -116,6 +124,7 @@ static void rs485_tx_task(void* /*arg*/) {
     const size_t written = Serial.write(chunk.data, chunk.len);
     system_monitor_add_rs485_tx(written);
     if (written < chunk.len) {
+      system_monitor_inc_net_tx_drop(chunk.len - written);
       system_monitor_inc_uart_tx_err();
     }
   }
