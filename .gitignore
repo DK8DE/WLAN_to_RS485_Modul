@@ -7,6 +7,10 @@
 # oft von PlatformIO/CMake erzeugt, sehr groß
 compile_commands.json
 
+# Word-Spezifikation v4 — nicht versionieren (nur AT-Kommandos.md)
+Spezifikationen/ESP32-C5_WLAN_RS485_Spezifikation_v4.doc
+Spezifikation/ESP32-C5_WLAN_RS485_Spezifikation_v4.doc
+
 .vscode/.browse.c_cpp_db*
 .vscode/c_cpp_properties.json
 .vscode/launch.json
