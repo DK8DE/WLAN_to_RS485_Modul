@@ -11,6 +11,8 @@
 
 #include <WebServer.h>
 #include <WiFi.h>
+#include <Update.h>
+#include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -23,6 +25,37 @@
 extern DeviceIdentity g_identity;
 
 static WebServer* g_web = nullptr;
+static String g_update_err;
+static volatile bool g_wifi_apply_pending = false;
+
+static void deferred_wifi_apply_task(void* /*arg*/) {
+  vTaskDelay(pdMS_TO_TICKS(500));
+  wifi_manager_apply_runtime();
+  g_wifi_apply_pending = false;
+  vTaskDelete(nullptr);
+}
+
+static void schedule_wifi_apply() {
+  if (g_wifi_apply_pending) {
+    return;
+  }
+  g_wifi_apply_pending = true;
+  xTaskCreate(deferred_wifi_apply_task, "wifi_def", 4096, nullptr, 2, nullptr);
+}
+
+static void deferred_reboot_task(void* pv) {
+  vTaskDelay(pdMS_TO_TICKS(400));
+  if (pv != nullptr) {
+    AppConfig cfg{};
+    app_config_factory_reset(&cfg, g_identity);
+  }
+  ESP.restart();
+}
+
+static void schedule_reboot(bool factory_reset) {
+  xTaskCreate(deferred_reboot_task, "reboot", 4096, factory_reset ? (void*)1 : nullptr, 2,
+              nullptr);
+}
 
 static const char* wifi_mode_name(WifiMode m) {
   switch (m) {
@@ -297,15 +330,29 @@ static void handle_config_wifi_post() {
   }
   if (json_get_string(body, "wifi_ip", tmp, sizeof(tmp))) {
     strncpy(cfg.wifi_ip, tmp, sizeof(cfg.wifi_ip) - 1);
+    cfg.wifi_ip[sizeof(cfg.wifi_ip) - 1] = '\0';
   }
   if (json_get_string(body, "wifi_mask", tmp, sizeof(tmp))) {
     strncpy(cfg.wifi_mask, tmp, sizeof(cfg.wifi_mask) - 1);
+    cfg.wifi_mask[sizeof(cfg.wifi_mask) - 1] = '\0';
   }
   if (json_get_string(body, "wifi_gw", tmp, sizeof(tmp))) {
     strncpy(cfg.wifi_gw, tmp, sizeof(cfg.wifi_gw) - 1);
+    cfg.wifi_gw[sizeof(cfg.wifi_gw) - 1] = '\0';
   }
   if (json_get_string(body, "wifi_dns", tmp, sizeof(tmp))) {
     strncpy(cfg.wifi_dns, tmp, sizeof(cfg.wifi_dns) - 1);
+    cfg.wifi_dns[sizeof(cfg.wifi_dns) - 1] = '\0';
+  }
+
+  if (!cfg.wifi_dhcp) {
+    IPAddress ip, mask, gw;
+    if (!ip.fromString(cfg.wifi_ip) || !mask.fromString(cfg.wifi_mask) ||
+        !gw.fromString(cfg.wifi_gw)) {
+      g_web->send(400, "application/json",
+                   "{\"error\":\"invalid static ip (IP, Netzmaske, Gateway erforderlich)\"}");
+      return;
+    }
   }
 
   // XOR: nie AP+STA. connect_sta + SSID → Infrastruktur; Modus AP → SoftAP.
@@ -326,8 +373,8 @@ static void handle_config_wifi_post() {
     return;
   }
 
-  wifi_manager_apply_runtime();
-  g_web->send(200, "application/json", "{\"ok\":true}");
+  g_web->send(200, "application/json", "{\"ok\":true,\"reconnecting\":true}");
+  schedule_wifi_apply();
 }
 
 static void handle_config_rs485_post() {
@@ -460,29 +507,12 @@ static void handle_webpass_post() {
   g_web->send(200, "application/json", "{\"ok\":true}");
 }
 
-static void handle_scan() {
-  if (!require_auth()) {
-    return;
-  }
-  int band = static_cast<int>(app_config_runtime_const().wifi_band);
-  if (g_web->hasArg("band")) {
-    band = g_web->arg("band").toInt();
-  }
-  if (band < 0 || band > 2) {
-    band = 0;
-  }
-
-  const int n = wifi_manager_scan(false, static_cast<uint8_t>(band));
-
-  String j = "{";
-  j += "\"band\":" + String(band) + ",";
-  j += "\"may_disconnect\":false,";
+static void append_scan_networks_json(String& j, int band, int n) {
   j += "\"networks\":[";
   bool first = true;
   for (int i = 0; i < n; ++i) {
     const int ch = WiFi.channel(i);
     const bool is5 = ch > 14;
-    // Bei reinem 2.4-Scan 5G-Einträge verwerfen; bei 5G-Scan 2.4 verwerfen
     if (band == 1 && is5) {
       continue;
     }
@@ -502,13 +532,146 @@ static void handle_scan() {
     j += "\"secure\":" + String(WiFi.encryptionType(i) != WIFI_AUTH_OPEN ? "true" : "false");
     j += "}";
   }
-  j += "]}";
-  WiFi.scanDelete();
+  j += "]";
+}
+
+static void handle_scan_start() {
+  if (!require_auth()) {
+    return;
+  }
+  int band = static_cast<int>(app_config_runtime_const().wifi_band);
+  if (g_web->hasArg("band")) {
+    band = g_web->arg("band").toInt();
+  }
+  if (band < 0 || band > 2) {
+    band = 0;
+  }
+
+  if (wifi_manager_scan_state() == WifiScanState::RUNNING) {
+    g_web->send(200, "application/json", "{\"status\":\"scanning\"}");
+    return;
+  }
+
+  if (!wifi_manager_scan_start(static_cast<uint8_t>(band), false)) {
+    g_web->send(500, "application/json", "{\"status\":\"error\",\"error\":\"scan start failed\"}");
+    return;
+  }
+  g_web->send(200, "application/json", "{\"status\":\"scanning\"}");
+}
+
+static void handle_scan_status() {
+  if (!require_auth()) {
+    return;
+  }
+
+  const WifiScanState st = wifi_manager_scan_state();
+  if (st == WifiScanState::RUNNING) {
+    g_web->send(200, "application/json", "{\"status\":\"scanning\"}");
+    return;
+  }
+  if (st == WifiScanState::IDLE) {
+    g_web->send(200, "application/json", "{\"status\":\"idle\"}");
+    return;
+  }
+  if (st == WifiScanState::FAILED) {
+    wifi_manager_scan_clear();
+    g_web->send(200, "application/json", "{\"status\":\"error\",\"error\":\"scan failed\"}");
+    return;
+  }
+
+  const int band = static_cast<int>(wifi_manager_scan_band());
+  const int n = wifi_manager_scan_count();
+  String j = "{\"status\":\"done\",\"band\":" + String(band) + ",";
+  append_scan_networks_json(j, band, n);
+  j += "}";
+  wifi_manager_scan_clear();
   g_web->send(200, "application/json", j);
 }
 
 static void handle_not_found() {
   g_web->send(404, "text/plain", "Not found");
+}
+
+static void handle_update_info() {
+  if (!require_auth()) {
+    return;
+  }
+  const esp_partition_t* run = esp_ota_get_running_partition();
+  const esp_partition_t* next = esp_ota_get_next_update_partition(nullptr);
+  const size_t max_bytes = next ? next->size : 0;
+
+  String j = "{";
+  j += "\"fw\":\"" FW_VERSION_STR "\",";
+  j += "\"hw\":\"" HW_VERSION_STR "\",";
+  j += "\"running\":\"" + json_escape(run ? run->label : "?") + "\",";
+  j += "\"max_bytes\":" + String(static_cast<unsigned>(max_bytes)) + ",";
+  j += "\"ota_ready\":" + String(next != nullptr ? "true" : "false");
+  j += "}";
+  g_web->send(200, "application/json", j);
+}
+
+static void handle_update_upload() {
+  HTTPUpload& upload = g_web->upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    g_update_err = "";
+    if (!require_auth()) {
+      g_update_err = "auth";
+      return;
+    }
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+      g_update_err = Update.errorString();
+    }
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (g_update_err.length() > 0) {
+      return;
+    }
+    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+      g_update_err = Update.errorString();
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (g_update_err.length() > 0) {
+      Update.abort();
+      return;
+    }
+    if (!Update.end(true)) {
+      g_update_err = Update.errorString();
+    }
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+    Update.abort();
+    g_update_err = "aborted";
+  }
+}
+
+static void handle_update_finish() {
+  if (!require_auth()) {
+    return;
+  }
+  if (g_update_err.length() > 0) {
+    String j = "{\"error\":\"";
+    j += json_escape(g_update_err.c_str());
+    j += "\"}";
+    g_web->send(500, "application/json", j);
+    return;
+  }
+  g_web->send(200, "application/json", "{\"ok\":true,\"reboot\":true}");
+  delay(400);
+  ESP.restart();
+}
+
+static void handle_reboot() {
+  if (!require_auth()) {
+    return;
+  }
+  g_web->send(200, "application/json", "{\"ok\":true,\"reboot\":true}");
+  schedule_reboot(false);
+}
+
+static void handle_factory_reset() {
+  if (!require_auth()) {
+    return;
+  }
+  g_web->send(200, "application/json", "{\"ok\":true,\"reboot\":true,\"factory\":true}");
+  schedule_reboot(true);
 }
 
 void web_server_begin() {
@@ -520,7 +683,12 @@ void web_server_begin() {
   g_web->on("/api/config/rs485", HTTP_POST, handle_config_rs485_post);
   g_web->on("/api/config/webpass", HTTP_POST, handle_webpass_post);
   g_web->on("/api/save", HTTP_POST, handle_save);
-  g_web->on("/api/wifi/scan", HTTP_GET, handle_scan);
+  g_web->on("/api/wifi/scan/start", HTTP_GET, handle_scan_start);
+  g_web->on("/api/wifi/scan/status", HTTP_GET, handle_scan_status);
+  g_web->on("/api/update/info", HTTP_GET, handle_update_info);
+  g_web->on("/api/update", HTTP_POST, handle_update_finish, handle_update_upload);
+  g_web->on("/api/reboot", HTTP_POST, handle_reboot);
+  g_web->on("/api/factory-reset", HTTP_POST, handle_factory_reset);
   g_web->onNotFound(handle_not_found);
   g_web->begin();
 }
@@ -535,5 +703,5 @@ static void web_server_task(void* /*arg*/) {
 }
 
 void web_server_start_task() {
-  xTaskCreate(web_server_task, "web", 8192, nullptr, 3, nullptr);
+  xTaskCreate(web_server_task, "web", 12288, nullptr, 3, nullptr);
 }

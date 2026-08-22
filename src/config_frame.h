@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 static constexpr uint16_t kConfigDiscoveryUdpPort = 8880;
+// Host lauscht auf diesem Port (RotorTcpBridge); periodische Ankuendigung + Broadcast-Antwort
+static constexpr uint16_t kConfigDiscoveryClientPort = 8889;
 static constexpr uint8_t kConfigProtoVersion = 1;
 static constexpr uint8_t kConfigSync0 = 0xAA;
 static constexpr uint8_t kConfigSync1 = 0x55;

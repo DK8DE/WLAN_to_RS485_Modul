@@ -64,9 +64,6 @@ void loop() {
     gpio_status_factory_confirm_blink();
     AppConfig cfg{};
     app_config_factory_reset(&cfg, g_identity);
-    delay(100);
     ESP.restart();
   }
-
-  delay(10);
 }

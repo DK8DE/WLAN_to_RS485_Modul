@@ -10,6 +10,13 @@ enum class WifiLinkState : uint8_t {
   STA_CONNECTED = 2,
 };
 
+enum class WifiScanState : int8_t {
+  IDLE = 0,
+  RUNNING = 1,
+  DONE = 2,
+  FAILED = -1,
+};
+
 void wifi_manager_begin();
 void wifi_manager_start_task();
 void wifi_manager_apply_runtime(); // Konfig aus RAM neu anwenden (ohne Reboot)
@@ -23,9 +30,18 @@ void wifi_manager_get_ap_ssid(char* out, size_t out_len);
 int wifi_manager_rssi();
 bool wifi_manager_sta_connected();
 
-// Scan (blockierend). band: WifiBand (0=Auto, 1=2.4, 2=5).
-// Im SoftAP-Modus bleibt der AP während des Scans erreichbar (kurz AP+STA).
-int wifi_manager_scan(bool include_hidden, uint8_t band);
+// Hintergrund-Scan für Web-UI (kurze HTTP-Polls statt langer Request).
+bool wifi_manager_scan_start(uint8_t band, bool include_hidden = false);
+WifiScanState wifi_manager_scan_state();
+int wifi_manager_scan_count();
+uint8_t wifi_manager_scan_band();
+void wifi_manager_scan_clear();
+
+// Blockierender Scan (AT). keepalive optional.
+typedef void (*WifiScanKeepaliveFn)(void);
+int wifi_manager_scan(bool include_hidden, uint8_t band,
+                      WifiScanKeepaliveFn keepalive = nullptr);
+
 void wifi_manager_apply_band(uint8_t band_mode_enum); // WifiBand
 void wifi_manager_restore_softap();
 

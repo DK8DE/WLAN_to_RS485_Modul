@@ -436,6 +436,15 @@ delay_ms = 20 + (CRC16(modul_mac[6]) % 481)
 
 **Hinweis:** Pro UDP-Paket kann die Firmware Config-Frames und AT-Text verarbeiten. AT-Session: zuerst `+++CFG:<UID>\r` im **selben UDP-Datagramm-Strom** (Unicast), danach `AT+…`-Zeilen — Antworten gehen an den letzten UDP-Peer zurück.
 
+**Broadcast / unterschiedliche Subnetze (z. B. PC `192.168.0.x`, Modul `192.168.1.x`):**
+
+- Wie bei Ebyte-Modulen gilt: **`255.255.255.255` ist kein Router-Über-Subnetz-Wunder** — das Paket wird nur im gleichen **L2-Segment** (typisch gleiches WLAN/LAN ohne Client-Isolation) an alle Geräte verteilt.
+- Die Firmware lauscht mit **nativem lwIP-UDP-Socket** (`INADDR_ANY:8880`, `SO_BROADCAST`, `SO_REUSEADDR`).
+- Der Host (RotorTcpBridge) lauscht auf **UDP 8889** (`kConfigDiscoveryClientPort`) — analog Ebyte Port 1902.
+- DISCOVER-Antwort: **Unicast** an `(Host-IP, 8889)` **plus Duplikat** an `255.255.255.255:8889` (falls Modul-IP falsch ist und Unicast-Routing scheitert).
+- Zusätzlich sendet das Modul alle **12 s** eine **DISCOVER_RESPONSE-Ankündigung** an `255.255.255.255:8889`, solange WLAN/SoftAP aktiv ist.
+- **Subnetz-Broadcast** (`192.168.0.255`) erreicht ein Modul in `192.168.1.0/24` bewusst **nicht** — Host sendet zusätzlich `255.255.255.255:8880`.
+
 ---
 
 ### Discovery über RS485 (UART)

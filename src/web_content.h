@@ -75,11 +75,16 @@ input:focus,select:focus{border-color:var(--blue)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
 @media(max-width:640px){.row{grid-template-columns:1fr}}
 .actions{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:.4rem}
-button.btn{
+.btn{
   appearance:none;border:0;border-radius:.7rem;padding:.65rem 1rem;cursor:pointer;
-  font-weight:600;color:var(--white);background:var(--blue)
+  font-weight:600;color:var(--white);background:var(--blue);
+  display:inline-flex;align-items:center;justify-content:center;
+  font:inherit;font-size:.95rem;line-height:1.35;text-decoration:none;white-space:nowrap
 }
-button.btn.sec{background:#223049;color:var(--text);border:1px solid var(--line)}
+.btn.sec{background:#223049;color:var(--text);border:1px solid var(--line)}
+.btn.sec:hover{border-color:var(--blue);background:#263248}
+.btn.danger{background:var(--err);color:var(--white)}
+.btn.danger:hover{filter:brightness(1.08)}
 button.btn:disabled{opacity:.5;cursor:wait}
 .msg{min-height:1.2rem;color:var(--muted);font-size:.9rem;margin-top:.5rem}
 .msg.ok{color:var(--ok)}.msg.err{color:var(--err)}
@@ -90,6 +95,21 @@ button.btn:disabled{opacity:.5;cursor:wait}
 .scan tr{cursor:pointer}.scan tr:hover td{background:rgba(59,130,246,.08)}
 .tag{display:inline-block;padding:.1rem .45rem;border-radius:.4rem;font-size:.72rem;background:#1c2b45;color:var(--blue2)}
 .tag.g5{background:#1a2740;color:#93c5fd}
+.filepick{
+  display:flex;align-items:stretch;gap:.65rem;flex-wrap:wrap;
+  margin-bottom:.85rem
+}
+.filepick input[type=file]{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0
+}
+.filepick-btn{min-width:10rem;flex-shrink:0}
+.filepick-name{
+  flex:1;min-width:12rem;display:flex;align-items:center;
+  padding:.65rem .85rem;border:1px solid var(--line);border-radius:.65rem;
+  background:#0c1320;color:var(--muted);font-size:.9rem;word-break:break-all
+}
+.filepick-name.on{color:var(--text);border-color:#2f5fad;background:rgba(26,45,77,.35)}
 .foot{color:var(--muted);font-size:.8rem;text-align:center;padding:1rem 0 2rem}
 </style>
 </head>
@@ -107,6 +127,8 @@ button.btn:disabled{opacity:.5;cursor:wait}
     <button data-tab="wifi">WLAN</button>
     <button data-tab="rs485">RS485</button>
     <button data-tab="security">Sicherheit</button>
+    <button data-tab="update">Update</button>
+    <button data-tab="reset">Reset</button>
   </nav>
 
   <section id="tab-status">
@@ -171,9 +193,7 @@ button.btn:disabled{opacity:.5;cursor:wait}
         </div>
       </div>
       <div class="actions">
-        <button class="btn" id="btnApply">Mit Router verbinden</button>
-        <button class="btn sec" id="btnSoftAp">SoftAP speichern</button>
-        <button class="btn sec" id="btnRefresh">Status aktualisieren</button>
+        <button class="btn" id="btnApply">Speichern / Verbinden</button>
       </div>
       <div class="msg" id="msg"></div>
     </div>
@@ -204,11 +224,11 @@ button.btn:disabled{opacity:.5;cursor:wait}
       </div>
       <div class="row">
         <div>
-          <label>Ziel‑IP (Client / UDP)</label>
+          <label>Ziel‑IP für Client</label>
           <input id="remote_ip" placeholder="192.168.1.100"/>
         </div>
         <div>
-          <label>Ziel‑Port</label>
+          <label>Ziel‑Port für Client</label>
           <input id="remote_port" type="number" min="1" max="65535" value="8886"/>
         </div>
       </div>
@@ -219,8 +239,7 @@ button.btn:disabled{opacity:.5;cursor:wait}
           <label>Reconnect (ms, TCP Client)</label>
           <input id="reconnect_ms" type="number" min="500" step="100" value="5000"/>
         </div>
-        <div style="display:flex;flex-direction:column;justify-content:flex-end;gap:.35rem;padding-bottom:.85rem">
-          <label><input type="checkbox" id="tcp_nodelay" checked style="width:auto;margin-right:.4rem"/>TCP_NODELAY</label>
+        <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:.85rem">
           <label><input type="checkbox" id="tcp_keepalive" checked style="width:auto;margin-right:.4rem"/>TCP Keepalive</label>
         </div>
       </div>
@@ -247,28 +266,9 @@ button.btn:disabled{opacity:.5;cursor:wait}
           <input id="packet_size" type="number" min="32" max="1460" value="1024"/>
         </div>
       </div>
-      <div class="row">
-        <div>
-          <label>Delimiter</label>
-          <select id="delimiter">
-            <option value="0">aus</option>
-            <option value="1">CR</option>
-            <option value="2">LF</option>
-            <option value="3">frei (Byte)</option>
-          </select>
-        </div>
-        <div>
-          <label>Delimiter‑Byte (0–255)</label>
-          <input id="delimiter_custom" type="number" min="0" max="255" value="0"/>
-        </div>
-      </div>
       <label><input type="checkbox" id="bridge_enabled" checked style="width:auto;margin-right:.4rem"/>Bridge aktiv</label>
       <label><input type="checkbox" id="rs485_tx_allowed" checked style="width:auto;margin-right:.4rem"/>Netz → Serial (WLAN-Empfang auf UART ausgeben)</label>
       <label><input type="checkbox" id="rs485_rx_allowed" checked style="width:auto;margin-right:.4rem"/>Serial → Netz (UART-Empfang per WLAN senden)</label>
-      <p style="margin:.25rem 0 .85rem;color:var(--muted);font-size:.85rem">
-        Transparente Bridge: Bytes unverändert in beide Richtungen. Keine Echo-Filterung.
-      </p>
-      <label><input type="checkbox" id="echo_suppress" style="width:auto;margin-right:.4rem"/>Echo‑Unterdrückung (unbenutzt, immer aus)</label>
       <div class="actions">
         <button class="btn" id="btnRs485Save">Übernehmen &amp; speichern</button>
       </div>
@@ -296,6 +296,42 @@ button.btn:disabled{opacity:.5;cursor:wait}
     </div>
   </section>
 
+  <section id="tab-update" hidden>
+    <div class="card">
+      <h2>Firmware‑Update (OTA)</h2>
+      <p style="margin:0 0 1rem;color:var(--muted);font-size:.9rem">
+        Nur <code>firmware.bin</code> aus dem PlatformIO‑Build hochladen (App‑Partition, <b>nicht</b> <code>firmware.factory.bin</code>).
+        Nach erfolgreichem Upload startet das Modul neu und bootet aus dem zweiten OTA‑Slot.
+      </p>
+      <div class="grid" id="updateGrid"></div>
+      <div class="filepick">
+        <input id="fwFile" type="file" accept=".bin,application/octet-stream"/>
+        <label for="fwFile" class="btn sec filepick-btn">Datei auswählen</label>
+        <span class="filepick-name" id="fwFileName">Wählen Sie eine Firmwaredatei (.bin) aus</span>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btnFwUpload">Firmware hochladen</button>
+      </div>
+      <div class="msg" id="msgUpdate"></div>
+    </div>
+  </section>
+
+  <section id="tab-reset" hidden>
+    <div class="card">
+      <h2>Neustart &amp; Werkseinstellung</h2>
+      <p style="margin:0 0 1rem;color:var(--muted);font-size:.9rem">
+        <b>Neu starten:</b> Firmware neu booten, gespeicherte Einstellungen bleiben erhalten.<br/>
+        <b>Werkseinstellung:</b> Alle Konfiguration löschen (WLAN, Netzwerk, Passwort auf Werk —
+        Web-Login <b>admin</b> / <b>Rotorconfig</b>, SoftAP <b>2,4 GHz</b>).
+      </p>
+      <div class="actions">
+        <button class="btn sec" id="btnReboot">Modul neu starten</button>
+        <button class="btn danger" id="btnFactoryReset">Werkseinstellung</button>
+      </div>
+      <div class="msg" id="msgReset"></div>
+    </div>
+  </section>
+
   <div class="foot" id="foot"></div>
 </main>
 <script>
@@ -313,6 +349,17 @@ function setLink(ok,text){
   $('#ldot').classList.toggle('on',!!ok);
   $('#ltext').textContent=text;
 }
+function fmtUptime(sec){
+  sec=Math.max(0,Math.floor(Number(sec)||0));
+  const h=Math.floor(sec/3600);
+  const m=Math.floor((sec%3600)/60);
+  const s=sec%60;
+  const p=[];
+  if(h>0) p.push(h+' h');
+  p.push(m+' min');
+  p.push(s+' s');
+  return p.join(' ');
+}
 async function loadStatus(){
   const s=await api('/api/status');
   setLink(s.wifi_up,s.link_text);
@@ -320,7 +367,7 @@ async function loadStatus(){
   $('#statusGrid').innerHTML=[
     kv('Gerätename',s.device_name),kv('UID',s.uid),kv('MAC',s.mac),
     kv('Busadresse',s.bus_address),kv('Firmware',s.fw),kv('Hardware',s.hw),
-    kv('Uptime',s.uptime_s+' s'),kv('Reset',s.reset_reason)
+    kv('Uptime',fmtUptime(s.uptime_s)),kv('Reset',s.reset_reason)
   ].join('');
   $('#netGrid').innerHTML=[
     kv('WLAN‑Modus',s.wifi_mode_name),kv('Band',s.wifi_band_name),
@@ -356,25 +403,43 @@ async function loadConfig(){
   $('#remote_host').value=c.remote_host||'';
   $('#remote_port').value=c.remote_port;
   $('#reconnect_ms').value=c.reconnect_ms;
-  $('#tcp_nodelay').checked=!!c.tcp_nodelay;
   $('#tcp_keepalive').checked=!!c.tcp_keepalive;
   $('#bus_address').value=c.bus_address;
   $('#packet_timeout_ms').value=c.packet_timeout_ms;
   $('#packet_size').value=c.packet_size;
-  $('#delimiter').value=String(c.delimiter);
-  $('#delimiter_custom').value=c.delimiter_custom;
   $('#bridge_enabled').checked=!!c.bridge_enabled;
   $('#rs485_tx_allowed').checked=!!c.rs485_tx_allowed;
   $('#rs485_rx_allowed').checked=!!c.rs485_rx_allowed;
-  $('#echo_suppress').checked=!!c.echo_suppress;
+}
+async function pollWifiScan(deadlineMs){
+  while(Date.now()<deadlineMs){
+    await new Promise(r=>setTimeout(r,700));
+    try{
+      const j=await api('/api/wifi/scan/status');
+      if(j.status==='scanning'||j.status==='idle') continue;
+      if(j.status==='error') throw new Error(j.error||'Scan fehlgeschlagen');
+      if(j.status==='done') return j;
+    }catch(e){
+      const msg=String(e);
+      if(msg.includes('Failed to fetch')||msg.includes('NetworkError')||msg.includes('Load failed')){
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error('Scan-Timeout (45 s)');
 }
 async function doScan(){
   const band=Number($('#wifi_band').value);
   const btn=$('#btnScan');btn.disabled=true;btn.textContent='Scanne…';
-  $('#msg').textContent=band===1?'2,4-GHz-Scan…':(band===2?'5-GHz-Scan…':'Auto-Scan…');
+  const infra=$('#wifi_mode').value==='1';
+  $('#msg').textContent=infra
+    ? (band===1?'2,4-GHz-Scan (Infrastruktur, kann bis 30 s dauern)…':(band===2?'5-GHz-Scan (Infrastruktur, kann bis 30 s dauern)…':'Auto-Scan (Infrastruktur)…'))
+    : (band===1?'2,4-GHz-Scan…':(band===2?'5-GHz-Scan…':'Auto-Scan…'));
   $('#msg').className='msg';
   try{
-    const j=await api('/api/wifi/scan?band='+band);
+    await api('/api/wifi/scan/start?band='+band);
+    const j=await pollWifiScan(Date.now()+45000);
     const rows=j.networks||[];
     if(!rows.length){
       $('#scanBody').innerHTML='<tr><td colspan="4" style="color:var(--muted)">Keine Netze gefunden</td></tr>';
@@ -412,36 +477,106 @@ function wifiBody(extra){
     wifi_gw:$('#gw').value,wifi_dns:$('#dns').value
   },extra||{});
 }
-async function applyWifi(){
+function isTransientNetErr(e){
+  const msg=String(e);
+  return msg.includes('Failed to fetch')||msg.includes('NetworkError')||msg.includes('Load failed');
+}
+async function waitForDevice(deadlineMs){
+  while(Date.now()<deadlineMs){
+    await new Promise(r=>setTimeout(r,1200));
+    try{
+      return await api('/api/status');
+    }catch(e){
+      if(!isTransientNetErr(e)) throw e;
+    }
+  }
+  throw new Error('Gerät nicht erreichbar — Router-IP prüfen oder Seite neu laden');
+}
+async function applyWifiSave(){
+  const mode=Number($('#wifi_mode').value);
+  const btn=$('#btnApply');btn.disabled=true;
+  $('#msg').className='msg';
+
+  if(mode===0){
+    let band=Number($('#wifi_band').value);
+    if(band===0) band=1;
+    $('#wifi_band').value=String(band);
+    $('#msg').textContent='SoftAP wird gespeichert…';
+    try{
+      await api('/api/config/wifi',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(wifiBody({wifi_mode:0,wifi_band:band,connect_sta:false}))});
+      $('#msg').textContent='SoftAP aktiv ('+(band===2?'5 GHz':'2,4 GHz')+') — http://192.168.4.1/';
+      $('#msg').className='msg ok';
+      loadStatus().then(loadConfig).catch(()=>{});
+    }catch(e){
+      if(isTransientNetErr(e)){
+        $('#msg').textContent='SoftAP aktiv — http://192.168.4.1/ (Seite ggf. neu öffnen)';
+        $('#msg').className='msg ok';
+      }else{
+        $('#msg').textContent=String(e);$('#msg').className='msg err';
+      }
+    }finally{btn.disabled=false}
+    return;
+  }
+
   if(!$('#ssid').value.trim()){
     $('#msg').textContent='SSID für Router-Verbindung erforderlich';
     $('#msg').className='msg err';
+    btn.disabled=false;
     return;
   }
-  const btn=$('#btnApply');btn.disabled=true;
-  $('#msg').textContent='Verbinde mit Router — SoftAP wird ausgeschaltet…';$('#msg').className='msg';
-  $('#wifi_mode').value='1';
-  try{
-    await api('/api/config/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(wifiBody({connect_sta:true,wifi_mode:1}))});
-    $('#msg').textContent='Gespeichert — verbinde mit Router (SoftAP aus). STA-IP erscheint im Status.';
+  if(!$('#dhcp').checked){
+    if(!$('#ip').value.trim()||!$('#mask').value.trim()||!$('#gw').value.trim()){
+      $('#msg').textContent='Bei fester IP: IP, Netzmaske und Gateway angeben';
+      $('#msg').className='msg err';
+      btn.disabled=false;
+      return;
+    }
+  }
+  let prior=null;
+  try{ prior=await api('/api/status'); }catch(_){}
+  const alreadySta=!!(prior&&prior.sta_ip);
+  const useStatic=!$('#dhcp').checked;
+  $('#msg').textContent=alreadySta
+    ? (useStatic
+      ? 'Feste IP wird gespeichert — Verbindung kurz unterbrochen…'
+      : 'Band/Konfiguration wird gespeichert — Verbindung kurz unterbrochen…')
+    : (useStatic
+      ? 'Verbinde mit Router (feste IP)…'
+      : 'Verbinde mit Router — SoftAP wird ausgeschaltet…');
+  const body=wifiBody({connect_sta:true,wifi_mode:1});
+  const finishOk=async()=>{
+    if(alreadySta){
+      $('#msg').textContent='Gespeichert — warte auf erneute Verbindung…';
+      const st=await waitForDevice(Date.now()+45000);
+      if(useStatic){
+        $('#msg').textContent='Feste IP aktiv — '+($('#ip').value||st.sta_ip||'?');
+      }else{
+        $('#msg').textContent='Verbindung wiederhergestellt — IP: '+(st.sta_ip||'?');
+      }
+    }else{
+      $('#msg').textContent=useStatic
+        ? 'Gespeichert — verbinde mit fester IP '+$('#ip').value+'…'
+        : 'Gespeichert — verbinde mit Router (SoftAP aus). STA-IP erscheint im Status.';
+      setTimeout(loadStatus,1500);setTimeout(loadStatus,4000);setTimeout(loadStatus,12000);
+    }
     $('#msg').className='msg ok';
-    setTimeout(loadStatus,1500);setTimeout(loadStatus,4000);setTimeout(loadStatus,12000);
-  }catch(e){$('#msg').textContent=String(e);$('#msg').className='msg err'}
-  finally{btn.disabled=false}
-}
-async function applySoftAp(){
-  const btn=$('#btnSoftAp');btn.disabled=true;
-  $('#msg').textContent='SoftAP speichern…';$('#msg').className='msg';
-  let band=Number($('#wifi_band').value);
-  if(band===0) band=1; // SoftAP: Auto → 2,4 GHz
-  $('#wifi_band').value=String(band);
-  $('#wifi_mode').value='0';
+    loadStatus().then(loadConfig).catch(()=>{});
+  };
   try{
-    await api('/api/config/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(wifiBody({wifi_mode:0,wifi_band:band,connect_sta:false}))});
-    $('#msg').textContent='SoftAP aktiv ('+(band===2?'5 GHz':'2,4 GHz')+') — http://192.168.4.1/';
-    $('#msg').className='msg ok';
-    setTimeout(loadStatus,1500);
-  }catch(e){$('#msg').textContent=String(e);$('#msg').className='msg err'}
+    await api('/api/config/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    await finishOk();
+  }catch(e){
+    if(alreadySta&&isTransientNetErr(e)){
+      try{
+        await finishOk();
+      }catch(e2){
+        $('#msg').textContent=String(e2);$('#msg').className='msg err';
+      }
+    }else{
+      $('#msg').textContent=String(e);$('#msg').className='msg err';
+    }
+  }
   finally{btn.disabled=false}
 }
 async function applyRs485(){
@@ -454,13 +589,13 @@ async function applyRs485(){
     remote_host:$('#remote_host').value,
     remote_port:Number($('#remote_port').value),
     reconnect_ms:Number($('#reconnect_ms').value),
-    tcp_nodelay:$('#tcp_nodelay').checked,
+    tcp_nodelay:true,
     tcp_keepalive:$('#tcp_keepalive').checked,
     packet_timeout_ms:Number($('#packet_timeout_ms').value),
     packet_size:Number($('#packet_size').value),
-    delimiter:Number($('#delimiter').value),
-    delimiter_custom:Number($('#delimiter_custom').value),
-    echo_suppress:$('#echo_suppress').checked,
+    delimiter:0,
+    delimiter_custom:0,
+    echo_suppress:false,
     bridge_enabled:$('#bridge_enabled').checked,
     rs485_tx_allowed:$('#rs485_tx_allowed').checked,
     rs485_rx_allowed:$('#rs485_rx_allowed').checked,
@@ -475,6 +610,52 @@ async function applyRs485(){
   }catch(e){$('#msgRs485').textContent=String(e);$('#msgRs485').className='msg err'}
   finally{btn.disabled=false}
 }
+function fmtBytes(n){
+  if(n>=1048576) return (n/1048576).toFixed(2)+' MB';
+  if(n>=1024) return (n/1024).toFixed(1)+' kB';
+  return n+' B';
+}
+async function loadUpdateInfo(){
+  try{
+    const j=await api('/api/update/info');
+    $('#updateGrid').innerHTML=
+      kv('Firmware',j.fw)+kv('Hardware',j.hw)+
+      kv('Laufende Partition',j.running)+
+      kv('OTA‑Ziel max.',fmtBytes(j.max_bytes))+
+      kv('OTA bereit',j.ota_ready?'ja':'nein');
+  }catch(e){
+    $('#updateGrid').innerHTML=kv('Fehler',String(e));
+  }
+}
+async function doFirmwareUpload(){
+  const file=$('#fwFile').files[0];
+  if(!file){
+    $('#msgUpdate').textContent='Bitte eine .bin‑Datei wählen';
+    $('#msgUpdate').className='msg err';
+    return;
+  }
+  if(!file.name.toLowerCase().endsWith('.bin')){
+    $('#msgUpdate').textContent='Nur .bin‑Dateien erlaubt';
+    $('#msgUpdate').className='msg err';
+    return;
+  }
+  const btn=$('#btnFwUpload');btn.disabled=true;
+  $('#msgUpdate').textContent='Upload '+file.name+' ('+fmtBytes(file.size)+')…';
+  $('#msgUpdate').className='msg';
+  try{
+    const fd=new FormData();
+    fd.append('firmware',file);
+    const r=await fetch('/api/update',{method:'POST',credentials:'same-origin',body:fd});
+    const t=await r.text();
+    if(!r.ok) throw new Error(t||('HTTP '+r.status));
+    $('#msgUpdate').textContent='Update OK — Neustart…';
+    $('#msgUpdate').className='msg ok';
+    setTimeout(()=>location.reload(),8000);
+  }catch(e){
+    $('#msgUpdate').textContent=String(e);
+    $('#msgUpdate').className='msg err';
+  }finally{btn.disabled=false}
+}
 $$('nav button').forEach(b=>b.onclick=()=>{
   $$('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
   const t=b.dataset.tab;
@@ -482,11 +663,56 @@ $$('nav button').forEach(b=>b.onclick=()=>{
   $('#tab-wifi').hidden=t!=='wifi';
   $('#tab-rs485').hidden=t!=='rs485';
   $('#tab-security').hidden=t!=='security';
+  $('#tab-update').hidden=t!=='update';
+  $('#tab-reset').hidden=t!=='reset';
+  if(t==='update') loadUpdateInfo();
 });
+async function doReboot(){
+  if(!confirm('Modul wirklich neu starten?')) return;
+  const btn=$('#btnReboot');btn.disabled=true;
+  $('#msgReset').textContent='Neustart…';$('#msgReset').className='msg';
+  try{
+    await api('/api/reboot',{method:'POST'});
+    $('#msgReset').textContent='Neustart — warte auf Modul…';
+    await waitForDevice(Date.now()+45000);
+    $('#msgReset').textContent='Modul wieder online.';$('#msgReset').className='msg ok';
+    location.reload();
+  }catch(e){
+    if(isTransientNetErr(e)){
+      try{
+        await waitForDevice(Date.now()+45000);
+        $('#msgReset').textContent='Modul wieder online.';$('#msgReset').className='msg ok';
+        location.reload();
+        return;
+      }catch(e2){e=e2}
+    }
+    $('#msgReset').textContent=String(e);$('#msgReset').className='msg err';
+  }finally{btn.disabled=false}
+}
+async function doFactoryReset(){
+  if(!confirm('Werkseinstellung wirklich ausführen?\n\nAlle Einstellungen werden gelöscht (WLAN, TCP, Passwort). Danach SoftAP 2,4 GHz — http://192.168.4.1/')) return;
+  const btn=$('#btnFactoryReset');btn.disabled=true;
+  $('#msgReset').textContent='Werkseinstellung — Modul startet neu…';$('#msgReset').className='msg';
+  try{
+    await api('/api/factory-reset',{method:'POST'});
+  }catch(e){
+    if(!isTransientNetErr(e)){
+      $('#msgReset').textContent=String(e);$('#msgReset').className='msg err';
+      btn.disabled=false;
+      return;
+    }
+  }
+  $('#msgReset').textContent='Werkseinstellung — bitte mit SoftAP ROTOR-… verbinden: http://192.168.4.1/';
+  $('#msgReset').className='msg ok';
+  try{
+    await waitForDevice(Date.now()+30000);
+    location.reload();
+  }catch(_){}
+  finally{btn.disabled=false}
+}
 $('#dhcp').onchange=()=>{$('#staticBox').hidden=$('#dhcp').checked};
 $('#btnScan').onclick=doScan;
-$('#btnApply').onclick=applyWifi;
-$('#btnSoftAp').onclick=applySoftAp;
+$('#btnApply').onclick=applyWifiSave;
 $('#btnRs485Save').onclick=applyRs485;
 $('#btnWebPass').onclick=async()=>{
   const btn=$('#btnWebPass');btn.disabled=true;
@@ -506,7 +732,20 @@ $('#btnWebPass').onclick=async()=>{
   }catch(e){$('#msgWebPass').textContent=String(e);$('#msgWebPass').className='msg err'}
   finally{btn.disabled=false}
 };
-$('#btnRefresh').onclick=()=>loadStatus().then(loadConfig);
+$('#btnFwUpload').onclick=doFirmwareUpload;
+$('#fwFile').onchange=()=>{
+  const f=$('#fwFile').files[0];
+  const el=$('#fwFileName');
+  if(f){
+    el.textContent=f.name+' ('+fmtBytes(f.size)+')';
+    el.classList.add('on');
+  }else{
+    el.textContent='Wählen Sie eine Firmwaredatei (.bin) aus';
+    el.classList.remove('on');
+  }
+};
+$('#btnReboot').onclick=doReboot;
+$('#btnFactoryReset').onclick=doFactoryReset;
 loadStatus().then(loadConfig).catch(e=>{setLink(false,'Fehler');$('#msg').textContent=String(e)});
 setInterval(()=>{if(!$('#tab-status').hidden) loadStatus().catch(()=>{});},5000);
 </script>

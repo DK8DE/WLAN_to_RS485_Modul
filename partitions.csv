@@ -1,0 +1,8 @@
+# 4 MB Flash — Dual OTA (je ~1,88 MB App-Slot)
+# Erstes Flashen nach Umstellung: per USB (factory.bin oder firmware.bin + Partition)
+# Web-OTA: nur firmware.bin (App-Partition), nicht firmware.factory.bin
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x1E0000,
+app1,     app,  ota_1,   0x1F0000, 0x1E0000,
