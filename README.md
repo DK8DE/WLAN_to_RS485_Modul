@@ -2,7 +2,7 @@
 
 **Firmware:** 1.5.1 · **Hardware:** 1E1
 
-Netzwerk-Bridge für die **Rotorsteuerung**: Ein ESP32-C5-Modul verbindet die bestehende **RS485-Schnittstelle** des Rotors mit **WLAN/LAN**. Steuerbefehle und Antworten werden transparent durchgereicht — das Rotor-Protokoll bleibt unverändert.
+Netzwerk-Bridge für die **Rotorsteuerung**: Verlängert den **RS485-Pfad** der PC-Steuerung über **LAN/WLAN** bis zum Rotor (direkt am Schreibtisch oder in einer **Remotebox** mit Strom- und Signalversorgung). Steuerbefehle und Antworten werden transparent durchgereicht — das Rotor-Protokoll bleibt unverändert.
 
 Repository: https://github.com/DK8DE/WLAN_to_RS485_Modul
 
@@ -12,16 +12,32 @@ Protokoll-Referenz: [`Spezifikationen/AT-Kommandos.md`](Spezifikationen/AT-Komma
 
 ## Zweck und Einsatz
 
-Das Modul wird **in der Rotorsteuerung** eingebaut und macht den Rotor über das Netzwerk erreichbar, ohne die vorhandene RS485-Kommunikation zu ersetzen. Technisch ist es eine **transparente Brücke** zwischen **WLAN/TCP/UDP** und **RS485 (UART0)** — Konfiguration, Discovery und Diagnose laufen über einen getrennten Kanal (Web, UDP 8880, AT).
+Am **PC** läuft ein **Steuermodul** (Rotorsteuerung). Es kann per **USB**, **LAN** oder **WLAN** angebunden sein — intern arbeitet die Steuerung durchgängig mit **RS485**.
 
-Typische Einsatzszenarien:
+Der **Rotor** kann auf zwei Wegen an die Steuerung angebunden werden:
 
-| Szenario | Beschreibung |
-|----------|--------------|
-| **PC über LAN** | Steuer- oder Diagnose-Software am PC verbindet sich per TCP/UDP mit dem Modul im Hausnetz und steuert den Rotor so, als säße der PC direkt am RS485-Bus. |
-| **Lokal ↔ Remote** | Ein **lokales Steuergerät** am Rotor (RS485) und eine **Remote-Einspeisung** (Fernsteuerung über Netzwerk) werden über das Modul miteinander verbunden — z. B. Bedienung vor Ort und zusätzlicher Zugriff aus der Ferne über dieselbe RS485-Leitung. |
+1. **Direkt** — Rotor und Steuerung sind lokal verbunden (typisch USB/Serial oder RS485 am Schreibtisch).
+2. **Über Netzwerk** — Zwischen Steuerung und Rotor sitzt eine **Netzwerkbrücke** (dieses Modul), meist in einer **Remotebox** am Rotorstandort. Die Verbindung zur Steuerung erfolgt per **LAN oder WLAN**; am Rotor hängt weiterhin **RS485**. Die Remotebox **speist den Rotor mit Strom** und führt das **RS485-Signal** zum Antrieb.
 
-Das Modul **interpretiert keine Rotorbefehle**; es leitet Bytes nur weiter. Rotor-Controller, Steuersoftware und Bus-Protokoll bleiben unverändert — es kommt lediglich die **Netzwerkverbindung** hinzu.
+Technisch ist das Modul eine **transparente Brücke** zwischen **WLAN/LAN (TCP/UDP)** und **RS485 (UART0)**. Es wertet keine Rotorbefehle aus — Steuersoftware, Bus-Protokoll und Rotor-Controller bleiben unverändert.
+
+### Einsatzszenarien
+
+| Szenario | Aufbau |
+|----------|--------|
+| **LAN statt USB** | Die Steuerung hat nur ein **LAN-Modul** (kein direktes USB/Serial zum Rotor). Statt Kabel zum Rotor verbindet sich die Steuerung per **LAN/WLAN** mit dem Modul am Rotor — der RS485-Pfad endet physisch am Modul, logisch wie gewohnt in der Software. |
+| **Remotebox am Rotor** | Steuerung am PC (USB/LAN/WLAN) → **Netzwerk** → Modul in der **Remotebox** vor Ort → **Stromversorgung + RS485** zum Rotor. So kann der Rotor entfernt vom Schreibtisch betrieben werden; die Steuerung „sieht“ weiterhin eine RS485-Verbindung, nur über die Brücke. |
+
+```
+Steuerung (PC)                    Remotebox / Modul am Rotor
+┌─────────────────┐              ┌──────────────────────────┐
+│ Steuermodul     │   LAN/WLAN   │ WLAN_to_RS485_Modul      │
+│ (intern RS485)  │ ───────────► │  + Stromversorgung Rotor │
+└─────────────────┘              │  + RS485 zum Antrieb     │
+                                 └──────────────────────────┘
+```
+
+Konfiguration, Discovery und Diagnose des Moduls laufen über einen **getrennten Kanal** (Web-UI, UDP 8880, AT) — nicht über den transparenten Nutzdatenkanal.
 
 ---
 
