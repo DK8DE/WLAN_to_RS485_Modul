@@ -1,8 +1,15 @@
 #include "gpio_status.h"
 
+#include "app_config.h"
 #include "board_pins.h"
+#include "device_identity.h"
 
 #include <Arduino.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+extern DeviceIdentity g_identity;
 
 static WlanLedMode g_wlan_led_mode = WlanLedMode::OFF;
 static bool g_factory_req = false;
@@ -47,6 +54,24 @@ void gpio_status_factory_confirm_blink() {
     digitalWrite(PIN_LBLED, LOW);
     delay(40);
   }
+}
+
+static void gpio_status_task(void* /*arg*/) {
+  for (;;) {
+    gpio_status_loop();
+    if (gpio_status_factory_requested()) {
+      gpio_status_clear_factory_request();
+      gpio_status_factory_confirm_blink();
+      AppConfig cfg{};
+      app_config_factory_reset(&cfg, g_identity);
+      ESP.restart();
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+void gpio_status_start_task() {
+  xTaskCreate(gpio_status_task, "gpio", 4096, nullptr, 5, nullptr);
 }
 
 void gpio_status_loop() {

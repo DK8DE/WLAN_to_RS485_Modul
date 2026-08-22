@@ -9,7 +9,8 @@ enum class WlanLedMode : uint8_t {
 };
 
 void gpio_status_begin();
-void gpio_status_loop(); // aus main/system_monitor aufrufen
+void gpio_status_start_task();
+void gpio_status_loop();
 
 void gpio_status_set_wlan_led(WlanLedMode mode);
 bool gpio_status_factory_requested();

@@ -31,6 +31,7 @@ void setup() {
                 static_cast<unsigned>(cfg.net_mode), cfg.local_port);
 
   gpio_status_begin();
+  gpio_status_start_task();
   system_monitor_begin();
   config_ingress_begin();
   config_udp_begin();
@@ -56,14 +57,5 @@ void setup() {
 }
 
 void loop() {
-  gpio_status_loop();
   system_monitor_loop();
-
-  if (gpio_status_factory_requested()) {
-    gpio_status_clear_factory_request();
-    gpio_status_factory_confirm_blink();
-    AppConfig cfg{};
-    app_config_factory_reset(&cfg, g_identity);
-    ESP.restart();
-  }
 }
