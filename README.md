@@ -150,6 +150,24 @@ PlatformIO + **pioarduino** (ESP32-C5). Empfohlen unter Windows:
 
 COM-Port in `platformio.ini` (`upload_port` / `monitor_port`) anpassen.
 
+### GitHub Actions / fertige Firmware
+
+Bei jedem Push auf `main` baut die [GitHub Action](.github/workflows/build.yml) die Firmware automatisch.
+
+| Wo | Inhalt |
+|----|--------|
+| **Actions** → letzter erfolgreicher Lauf → *Artifacts* | `firmware.bin`, `factory.bin`, `BUILD_INFO.txt` (90 Tage) |
+| **Releases** (Tag `v*`, z. B. `v1.5.1`) | Gleiche Binärdateien + **Quellcode** (GitHub liefert automatisch `.zip` / `.tar.gz` des Tags) |
+
+Release manuell auslösen:
+
+```bash
+git tag v1.5.1
+git push origin v1.5.1
+```
+
+Lokaler Build ohne Tag: unter *Actions* → *Build Firmware* → *Run workflow*.
+
 ### Partition / OTA
 
 - `partitions.csv`: Dual-OTA (~1,88 MB je App-Slot)
