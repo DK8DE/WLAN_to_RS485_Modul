@@ -152,21 +152,27 @@ COM-Port in `platformio.ini` (`upload_port` / `monitor_port`) anpassen.
 
 ### GitHub Actions / fertige Firmware
 
-Bei jedem Push auf `main` baut die [GitHub Action](.github/workflows/build.yml) die Firmware automatisch.
+Bei jedem Push auf `main` (und bei manuellem Start) baut die [GitHub Action](.github/workflows/build.yml) die Firmware und veröffentlicht ein **GitHub Release** — Version aus `src/Version.h` (aktuell als Tag `v1.5.1`).
 
-| Wo | Inhalt |
-|----|--------|
-| **Actions** → letzter erfolgreicher Lauf → *Artifacts* | `firmware.bin`, `factory.bin`, `BUILD_INFO.txt` (90 Tage) |
-| **Releases** (Tag `v*`, z. B. `v1.5.1`) | Gleiche Binärdateien + **Quellcode** (GitHub liefert automatisch `.zip` / `.tar.gz` des Tags) |
+| Datei im Release | Inhalt |
+|------------------|--------|
+| `WLAN_to_RS485_v*_firmware.bin` | Web-OTA / USB-Flash (App-Partition) |
+| `WLAN_to_RS485_v*_factory.bin` | Erstes Flashen (Bootloader + Partition + App) |
+| `WLAN_to_RS485_v*_source.zip` | Quellcode (ZIP) |
+| `WLAN_to_RS485_v*_source.tar.gz` | Quellcode (tar.gz) |
+| `BUILD_INFO.txt` | Version, Git-SHA, Build-Zeit |
 
-Release manuell auslösen:
+**Download:** [Releases](https://github.com/DK8DE/WLAN_to_RS485_Modul/releases) (immer aktuelles `v*` der Firmware-Version)  
+**Zusätzlich:** [Actions](https://github.com/DK8DE/WLAN_to_RS485_Modul/actions) → Artifacts (90 Tage)
+
+Neue Firmware-Version: `src/Version.h` anpassen und nach `main` pushen — der Tag `v*` wird automatisch gesetzt/aktualisiert.
+
+Optional manuell taggen (gleiche Version wie in `Version.h`):
 
 ```bash
 git tag v1.5.1
 git push origin v1.5.1
 ```
-
-Lokaler Build ohne Tag: unter *Actions* → *Build Firmware* → *Run workflow*.
 
 ### Partition / OTA
 
