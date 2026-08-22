@@ -97,7 +97,7 @@ button.btn:disabled{opacity:.5;cursor:wait}
 .tag.g5{background:#1a2740;color:#93c5fd}
 .filepick{
   display:flex;align-items:stretch;gap:.65rem;flex-wrap:wrap;
-  margin-bottom:.85rem
+  margin-top:1.1rem;margin-bottom:.85rem
 }
 .filepick input[type=file]{
   position:absolute;width:1px;height:1px;padding:0;margin:-1px;
