@@ -36,7 +36,7 @@ void app_config_set_factory_defaults(AppConfig* cfg, const DeviceIdentity& id) {
   cfg->bus_address = device_identity_default_bus_addr(id);
 
   cfg->wifi_mode = WifiMode::AP;
-  cfg->wifi_band = WifiBand::AUTO;
+  cfg->wifi_band = WifiBand::BAND_2G; // Auslieferung: SoftAP 2,4 GHz
   cfg->wifi_ssid[0] = '\0';
   cfg->wifi_pass[0] = '\0';
   cfg->wifi_dhcp = true;
@@ -44,6 +44,7 @@ void app_config_set_factory_defaults(AppConfig* cfg, const DeviceIdentity& id) {
   strncpy(cfg->wifi_mask, "255.255.255.0", sizeof(cfg->wifi_mask) - 1);
   strncpy(cfg->wifi_gw, "192.168.1.1", sizeof(cfg->wifi_gw) - 1);
   strncpy(cfg->wifi_dns, "192.168.1.1", sizeof(cfg->wifi_dns) - 1);
+  // Bei STA-Timeout: SoftAP-only (XOR), nie parallel zu Infrastruktur
   cfg->fallback_ap = true;
   cfg->sta_timeout_ms = 60000;
 
@@ -52,7 +53,7 @@ void app_config_set_factory_defaults(AppConfig* cfg, const DeviceIdentity& id) {
   strncpy(cfg->remote_ip, "192.168.1.100", sizeof(cfg->remote_ip) - 1);
   cfg->remote_host[0] = '\0';
   cfg->remote_port = 8886;
-  cfg->reconnect_ms = 5000;
+  cfg->reconnect_ms = 1000;
   cfg->tcp_timeout_ms = 60000;
   cfg->tcp_nodelay = true;
   cfg->tcp_keepalive = true;
@@ -62,10 +63,13 @@ void app_config_set_factory_defaults(AppConfig* cfg, const DeviceIdentity& id) {
   cfg->packet_size = 1024;
   cfg->delimiter = PacketDelimiter::NONE;
   cfg->delimiter_custom = 0;
-  cfg->echo_suppress = true;
+  cfg->echo_suppress = false; // COM/USB-Monitor ohne Loopback: sonst werden TX-Zähler zu Befehlen
   cfg->bridge_enabled = true;
   cfg->rs485_tx_allowed = true;
   cfg->rs485_rx_allowed = true;
+
+  strncpy(cfg->web_pass, "Rotorconfig", sizeof(cfg->web_pass) - 1);
+  cfg->web_pass[sizeof(cfg->web_pass) - 1] = '\0';
 }
 
 bool app_config_load(AppConfig* cfg, const DeviceIdentity& id) {
@@ -88,6 +92,10 @@ bool app_config_load(AppConfig* cfg, const DeviceIdentity& id) {
   cfg->wifi_band = static_cast<WifiBand>(g_prefs.getUChar("wband", static_cast<uint8_t>(cfg->wifi_band)));
   g_prefs.getString("ssid", cfg->wifi_ssid, sizeof(cfg->wifi_ssid));
   g_prefs.getString("pass", cfg->wifi_pass, sizeof(cfg->wifi_pass));
+  // Legacy APSTA → XOR (STA mit SSID, sonst SoftAP)
+  if (cfg->wifi_mode == WifiMode::APSTA) {
+    cfg->wifi_mode = (cfg->wifi_ssid[0] != '\0') ? WifiMode::STA : WifiMode::AP;
+  }
   cfg->wifi_dhcp = g_prefs.getBool("dhcp", cfg->wifi_dhcp);
   g_prefs.getString("ip", cfg->wifi_ip, sizeof(cfg->wifi_ip));
   g_prefs.getString("mask", cfg->wifi_mask, sizeof(cfg->wifi_mask));
@@ -115,6 +123,11 @@ bool app_config_load(AppConfig* cfg, const DeviceIdentity& id) {
   cfg->bridge_enabled = g_prefs.getBool("bridge", cfg->bridge_enabled);
   cfg->rs485_tx_allowed = g_prefs.getBool("txok", cfg->rs485_tx_allowed);
   cfg->rs485_rx_allowed = g_prefs.getBool("rxok", cfg->rs485_rx_allowed);
+  g_prefs.getString("webpass", cfg->web_pass, sizeof(cfg->web_pass));
+  if (cfg->web_pass[0] == '\0') {
+    strncpy(cfg->web_pass, "Rotorconfig", sizeof(cfg->web_pass) - 1);
+    cfg->web_pass[sizeof(cfg->web_pass) - 1] = '\0';
+  }
 
   g_prefs.end();
   clamp_packet_params(cfg);
@@ -162,6 +175,7 @@ bool app_config_save(const AppConfig& cfg) {
   g_prefs.putBool("bridge", c.bridge_enabled);
   g_prefs.putBool("txok", c.rs485_tx_allowed);
   g_prefs.putBool("rxok", c.rs485_rx_allowed);
+  g_prefs.putString("webpass", c.web_pass);
 
   g_prefs.end();
   g_runtime = c;

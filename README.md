@@ -1,6 +1,6 @@
 # WLAN_to_RS485_Modul
 
-**Version:** 1.0.0 (Phase 1 – Kernbrücke)
+**Version:** 1.0.0 (Phase 1 – Kernbrücke + Web-UI)
 
 Firmware für ein ESP32-C5-Modul: transparente **WLAN/TCP ↔ RS485 (UART0)**-Brücke.
 
@@ -15,18 +15,30 @@ Remote: https://github.com/DK8DE/WLAN_to_RS485_Modul
 | Werksreset | 8 | externer Pull-up, ≥5 s halten → Factory Reset |
 | RS485 | UART0 | 115200 8N1, Richtungsumschaltung im THVD1406DR |
 
-MCU: ESP32-C5 (`esp32-c5-devkitc-1`, Umgebung `esp32-c5-n4`).
+MCU: ESP32-C5 (`esp32-c5-devkitc-1`, Umgebung `esp32-c5-n4`) — **Wi‑Fi 6, 2,4 GHz und 5 GHz**.
+
+## Webinterface
+
+Nach dem Flashen den Modul‑AP verbinden (`ROTOR-<UID>`), dann im Browser:
+
+**http://192.168.4.1/**
+
+- Design: dunkles Blau / Grau / Weiß
+- **Status:** Gerät, WLAN, TCP, RS485‑Zähler
+- **WLAN:** Scan (2.4 + 5 GHz), SSID/Passwort, Bandwahl (Auto / 2.4 / 5), DHCP oder statische IP
+- Beim Speichern wird **AP+STA** gesetzt, damit das Webinterface auf dem Modul‑AP erreichbar bleibt
 
 ## Phase-1-Funktionen
 
 - Status-I/O (LEDs, Werksreset-Taster)
 - Geräte-UID aus MAC (`C5` + 3 Bytes), NVS-Konfiguration Schema v1
-- WLAN: AP / STA / APSTA, Fallback-AP nach STA-Timeout (Default 60 s)
+- WLAN: AP / STA / APSTA, Fallback-AP nach STA-Timeout (Default 60 s), Bandmodus für C5
 - TCP Server (Port 8886, max. 1 Client, TCP_NODELAY) / TCP Client (Reconnect) / Disabled
 - Packetizer RS485→TCP (Idle Default 2 ms, max. 1024 Byte)
 - Echo-Unterdrückung (einfach), Byte-/Drop-Zähler
+- Web-UI mit Status + WLAN‑Einrichtung
 
-**Noch nicht in Phase 1:** Binär-Konfigprotokoll, AT-Kommandos, Web-UI/API, OTA, Windows-Tool.
+**Noch nicht:** Binär-Konfigprotokoll, AT-Kommandos, volle Web-API (TCP/RS485-Seiten), OTA, Windows-Tool.
 
 ## Werkseinstellungen
 
@@ -55,21 +67,18 @@ Falls `ImportError: littlefs` auftritt, immer die `pio.exe` aus `.platformio\pen
 ```
 src/
   main.cpp
-  board_pins.h
-  Version.h
-  device_identity.*
-  app_config.*
-  gpio_status.*
-  wifi_manager.*
-  network_bridge.*
-  packetizer.*
-  rs485_uart.*
+  board_pins.h / Version.h
+  device_identity.* / app_config.* / gpio_status.*
+  wifi_manager.* / network_bridge.* / packetizer.* / rs485_uart.*
   system_monitor.*
+  web_server.* / web_content.h
 ```
 
-## Kurzer Test (Phase 1)
+## Kurzer Test
 
-1. Modul flashen → LBLED blinkt.
-2. AP `ROTOR-…` verbinden → WLAN-LED an, IP `192.168.4.1`.
-3. TCP-Client auf Port 8886 → Bytes PC↔UART0/RS485 transparent.
-4. Taster ≥5 s → Factory Reset + Neustart.
+1. Flashen → LBLED blinkt.
+2. AP `ROTOR-…` verbinden → WLAN-LED an → Browser `http://192.168.4.1/`
+3. Tab **WLAN** → Scan → Netz wählen → Passwort → Verbinden & speichern
+4. Status zeigt STA‑IP, wenn die Verbindung steht
+5. TCP-Client auf Port 8886 → Bytes PC↔UART0/RS485 transparent
+6. Taster ≥5 s → Factory Reset

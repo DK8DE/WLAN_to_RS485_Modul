@@ -6,9 +6,16 @@
 
 static constexpr uint16_t kConfigSchemaVersion = 1;
 
+// AP = SoftAP only, STA = Infrastruktur only. APSTA nur noch NVS-Legacy (wird zu STA/AP gemappt).
 enum class WifiMode : uint8_t { AP = 0, STA = 1, APSTA = 2 };
 enum class WifiBand : uint8_t { AUTO = 0, BAND_2G = 1, BAND_5G = 2 };
-enum class NetMode : uint8_t { TCP_SERVER = 0, TCP_CLIENT = 1, NET_OFF = 2 };
+enum class NetMode : uint8_t {
+  TCP_SERVER = 0,
+  TCP_CLIENT = 1,
+  NET_OFF = 2,      // Schema v1: DISABLED
+  UDP_SERVER = 3,   // Erweiterung gegenüber Spec v4 (UDP bewusst ergänzt)
+  UDP_CLIENT = 4
+};
 enum class PacketDelimiter : uint8_t { NONE = 0, CR = 1, LF = 2, CUSTOM = 3 };
 
 struct AppConfig {
@@ -49,6 +56,9 @@ struct AppConfig {
   bool bridge_enabled;
   bool rs485_tx_allowed;
   bool rs485_rx_allowed;
+
+  // Web-UI Login (HTTP Basic Auth, Benutzer "admin")
+  char web_pass[65];
 };
 
 void app_config_set_factory_defaults(AppConfig* cfg, const DeviceIdentity& id);

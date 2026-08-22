@@ -40,7 +40,6 @@ void packetizer_reset(Packetizer* p) {
 
 bool packetizer_feed(Packetizer* p, uint8_t b, unsigned long now_ms) {
   if (p->len >= p->max_size) {
-    // sollte nicht passieren — Caller flushed vorher
     return false;
   }
   p->buf[p->len++] = b;
